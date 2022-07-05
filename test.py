@@ -27,9 +27,15 @@ stdout = channel.recv(60000)
 # Формируем список подсетей их firewall из ответа
 for i in stdout.decode("utf-8").split("\n")[6:(len(stdout.decode("utf-8").split("\n"))-1):2]:
     net_acl_list.append(i[27:i.rfind("/24")])
-#ip_out_list = stdout.decode("utf-8").split("\n")
+
 channel.send(b"configure terminal" + b'\n')  #  Переходим в режим config
+time.sleep(1)
+net_ip = "113.116.72.0/24"
+channel.send('geo-ip geography AQ all address ' + net_ip + '\n')
+time.sleep(1)
+stdout2 = channel.recv(60000)
 client.close()
-print(net_acl_list)
-# for i in ip_out_list[6:(len(ip_out_list)-1):2]:
-#     print(i[27:i.rfind("/24")])
+print("Было: ", net_acl_list)
+print(stdout2)
+
+
