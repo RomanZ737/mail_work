@@ -1,7 +1,20 @@
 import imaplib
 import pymysql
 from decouple import config
+import paramiko
+import time
 from pymysql.cursors import DictCursor  # Возвразает курсор в виде словаря из базы данных
+
+
+def firewall_acl(acl_1, acl_2):
+    net_acl_list = []  # Фактический Список подсетей в faerowall
+    for i in acl_1.decode("utf-8").split("\n")[6:(len(acl_1.decode("utf-8").split("\n")) - 1):2]:
+        net_acl_list.append(i[27:i.rfind("/24")])
+    # Сравниванием с поступившим списком и корректируем при необходимости
+    for j in acl_2:  # Сравниваем список полученный из faerwall и список сформированный из почты
+        if j not in net_acl_list:  # Если подсети из почты нет в фактическом списке firewall, то добавляем в новый список, который загрузим в firewall
+            new_net_acl_list.append(j)
+    return new_net_acl_list
 
 
 def dickt_build(array_ip):  # Построение словоря IPNet из почты для сравнения с базой данных
@@ -20,6 +33,8 @@ def net_list_build(mail_data):  # Вынимаем IP адреса и отфил
                                              '(RFC822)')  # Вынимаем содержимое каждого из отфильтрованных сообщений
         s = str(message_received[0])  # Фрмируем строку
         ip = (s[(s.find('[')) + 1:s.find(']')])  # Вырезаем IP
+        imap.copy(msg_num, "Mail_Error")  # Копируем отфильтрованные письма в ящик Mail_Erorr
+        imap.store(msg_num, '+FLAGS', '\\Deleted')  # Помечаем письма для удаления
         if ip[:(
                 ip.rfind(
                     '.'))] not in local_net_ip:  # Фальтруем от локальных сетей и добавляем в массив для переноса в базу
@@ -27,8 +42,9 @@ def net_list_build(mail_data):  # Вынимаем IP адреса и отфил
     return net_list
 
 
-"""Фунция sql_result_poc обрабатывет результат запроса в базу данных и результаты обработки почты
-на выходе получается два словаря (добавить в базу данных - sql_add_array и обновить базу данных - sql_update_array) и один список (добавить в firewall) """
+"""Фунция sql_result_poc обрабатывет результат запроса в базу данных и результаты обработки почты на выходе 
+получается два словаря (добавить в базу данных - sql_add_array и обновить базу данных - sql_update_array) и один 
+список (добавить в firewall) """
 
 
 def sql_result_poc(array1, array2):
@@ -56,7 +72,7 @@ def sql_result_poc(array1, array2):
     return firewall_list, sql_add_array, sql_update_array
 
 
-def sql_data_add(add_to_array):  # Добавление данных в базу
+def sql_data_add(add_to_array):  # Добавление данных в базу SQL
     insert_array = []
     insert_in = """INSERT INTO ip_to_block (ip, count)
                      VALUES (%s, %s)"""  # Формируем запрос к базе
@@ -66,7 +82,7 @@ def sql_data_add(add_to_array):  # Добавление данных в базу
     connection.commit()
 
 
-def sql_data_update(update_to_array):  # Обновляем данные в базе
+def sql_data_update(update_to_array):  # Обновляем данные в базе SQL
     update_array = []
     change_data = """UPDATE
                         ip_to_block
@@ -75,7 +91,6 @@ def sql_data_update(update_to_array):  # Обновляем данные в ба
                     WHERE ip = %s"""
     for k, v in update_to_array.items():  # Фрмируем список контежей для переменных
         update_array.append((v, k))
-    print(update_array)
     cur.executemany(change_data, update_array)
     connection.commit()
 
@@ -83,67 +98,114 @@ def sql_data_update(update_to_array):  # Обновляем данные в ба
 sql_add_array = {}  # Массив данных для добавления в базу SQL
 sql_update_array = {}  # Массив данных для обновления в базы SQL
 firewall_list = []  # Список данных для добавления в firewall
+net_list = []  # Пустой массив для IP адресов
 
 local_net_ip = ['10.0.1', '192.168.2', '172.16.10', '172.16.20', '10.0.100']  # Список подсетей локальной сети
-net_list = []  # Пустой массив для IP адресов
+
+"""Блок работы с почтой"""
 
 username = config("MailuserID", default='')
 password = config('Mailpassword', default='')
 
 imap = imaplib.IMAP4_SSL("mail.zfamily.aero")  # Коннектимся к серверу
 imap.login(username, password)  # Логинимся на сервер
-messages = imap.select("Mail_Error")  # Выбираем ящик !!!! - НАДО ИЗМЕНИТЬ НА INBOX
-typ, data = imap.search(None, 'Subject', '"Postfix SMTP server: errors from unknown"')  # Фильтруем нужные письма
+imap.select("INBOX")  # Выбираем ящик
+typ, data = imap.search(None, 'Subject', '"Postfix SMTP server"')  # Фильтруем нужные письма
 
 d = str(data)  # Переводим полученные из почты данные в строку
 
-net_list_build(d)  # Список подсетей для добавления в базу
+if len(d) > 5:  # Проверяем есть ли письма с в результате поиска
+    net_list_build(d)  # Список подсетей для добавления в базу
 
-'''Этот блок разблокировать после отладки - перемещает и удаляет письма
-    imap.copy(msg_num, "Mail_Error")  # Копируем отфильтрованные письма в ящик Mail_Erorr
-    imap.store(msg_num, '+FLAGS', '\\Deleted')  # Помечаем письма для удаления
-imap.expunge()  # Удаляем помеченные письма '''
+    imap.expunge()  # Удаляем помеченные письма
 
-imap.close()  # Окончание раюоты с почтовым ящиком
-imap.logout()  # Окончание работы с почтовым ящиком
+    imap.close()  # Окончание раюоты с почтовым ящиком
+    imap.logout()  # Окончание работы с почтовым ящиком
 
-dict_nets = dickt_build(net_list)  # Построение словоря IP сетей для сравнения с базой данных и добавления в firewall
-print("Данные из почты: ", dict_nets)
+    dict_nets = dickt_build(
+        net_list)  # Построение словоря IP сетей для сравнения с базой данных и добавления в firewall
+    """DEBUG PRINT"""
+    #    print("Данные из почты: ", dict_nets)
 
-connection = pymysql.connect(  # Коннектимся к базе MySQL
-    host='10.0.1.66',
-    user=config("SQLusrID", default=''),
-    password=config('SQLpassword', default=''),
-    db='ip_blacklist',
-    charset='utf8mb4',
-    #    cursorclass=DictCursor  # Курсор будет возвращать значения в виде словарей
-)
+    """Блок работы с базой данных SQL"""
 
-cur = connection.cursor()  # Создаём курсор
+    connection = pymysql.connect(  # Коннектимся к базе MySQL
+        host=config("SQLhost", default=''),
+        user=config("SQLusrID", default=''),
+        password=config('SQLpassword', default=''),
+        db=config('SQLdb', default=''),
+        charset='utf8mb4',
+        #    cursorclass=DictCursor  # Курсор будет возвращать значения в виде словарей
+    )
 
-"""Блок создания таблицы"""
-# crate_table = """CREATE TABLE ip_to_block(
-#                     id INT PRIMARY KEY AUTO_INCREMENT,
-#                     ip VARCHAR(255) NOT NULL,
-#                     count INT);"""
+    cur = connection.cursor()  # Создаём курсор
 
-get_data = """SELECT * FROM ip_to_block  # Запрос данных в SQL с повторениями меньше 5
-                WHERE count < 5"""
-cur.execute(get_data)
-result = cur.fetchall()
+    """Блок создания таблицы"""
+    # crate_table = """CREATE TABLE ip_to_block(
+    #                     id INT PRIMARY KEY AUTO_INCREMENT,
+    #                     ip VARCHAR(255) NOT NULL,
+    #                     count INT);"""
 
-"""DEBUG PRINT"""
-for dicts in result:
-    print(dicts)
+    # Запрос данных в SQL с повторениями меньше 5
+    get_data = """SELECT * FROM ip_to_block  
+                    WHERE count < 5"""
+    cur.execute(get_data)
+    result = cur.fetchall()
 
-sql_result_poc(result, dict_nets)
+    """DEBUG PRINT"""
+    # print("Заброс из базы данных, повторения NET меньше 5")
+    # for dicts in result:
+    #     print(dicts)
 
-"""DEBUG PRINT"""
-print("Добавить в SQL: ", sql_add_array)
-print("Обновить SQL: ", sql_update_array)
-print("Лист firwwall: ", firewall_list)
+    sql_result_poc(result, dict_nets)  # Обработка результата запроса SQL и данных их почты
 
-sql_data_add(sql_add_array)  # Добавляем данные в базу
-sql_data_update(sql_update_array)  # Обновляем данные в базе
+    """DEBUG PRINT"""
+    # print("Добавить в SQL: ", sql_add_array)
+    # print("Обновить SQL: ", sql_update_array)
+    # print("Лист firwwall: ", firewall_list)
 
-connection.close()
+    sql_data_add(sql_add_array)  # Добавляем данные в базу
+    sql_data_update(sql_update_array)  # Обновляем данные в базе
+
+    connection.close()
+
+    if len(firewall_list) > 0:
+        """Блок работы с USG Zyxel по SSH"""
+
+        new_net_acl_list = []  # Список подсетей которые надо будет добавить в firewall
+
+        hostname = config("USGhostname", default='')
+        port = config("USGport", default='')
+        username = config("USGuserID", default='')
+        password = config("USGpassword", default='')
+
+        # Создать объект SSH
+        client = paramiko.SSHClient()
+        # Автоматически добавлять стратегию, сохранять имя хоста сервера и ключевую информацию
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # подключиться к серверу
+        client.connect(hostname, port, username, password, compress=True)
+
+        channel = client.invoke_shell()  # Создаем интерактивную оболочку на SSH сервере
+
+        channel.send(b"show geo-ip geography" + b'\n')  # Запрашиваел список подсетей в firewall
+        time.sleep(1)
+        stdout = channel.recv(60000)
+
+        firewall_acl(stdout, firewall_list)  # Формируем список подсетей их firewall из ответа
+
+        channel.send(b"configure terminal" + b'\n')  # Переходим в режим config
+        time.sleep(1)
+
+        for net_ip in new_net_acl_list:
+            channel.send('geo-ip geography AQ all address ' + net_ip + '/24' + '\n')
+            time.sleep(1)
+            """DEBUG PRINT"""
+            # print(channel.recv(60000)) # Монитор работы SSH
+        client.close()
+
+else:  # Если нет писем с ошибками
+    imap.close()  # Окончание раюоты с почтовым ящиком
+    imap.logout()  # Окончание работы с почтовым ящиком
+    """DEBUG PRINT"""
+    # print("Писем нет")
