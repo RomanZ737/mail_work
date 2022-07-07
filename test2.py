@@ -18,7 +18,8 @@ imap.select("INBOX")  # Выбираем ящик
 
 # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report
 typ, data = imap.uid('search', None,
-                     '(BEFORE {date} HEADER Subject "Backup Log Report")'.format(date=date))  # Фильтруем нужные письма
+                     '(BEFORE {date} HEADER Subject "Backup Log Report")'.format(date=date), 'SEEN')  # Фильтруем нужные письма
+print(data)
 target_str = str(data)[str(data).find("'")+strShift1:str(data).rfind("'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
 for msg_uid in target_str.split():  # Перебираем письма по UID
     imap.uid('copy', msg_uid, "BackUp_Log")
