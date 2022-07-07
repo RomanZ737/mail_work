@@ -7,6 +7,21 @@ import datetime
 from pymysql.cursors import DictCursor  # Возвразает курсор в виде словаря из базы данных
 
 
+def search_backup_mail():
+    date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
+    strshift1 = 1
+    # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report
+    typ, data = imap.uid('search', None,
+                         '(BEFORE {date} HEADER Subject "Backup Log Report")'.format(
+                             date=date))  # Фильтруем нужные письма
+    target_str = str(data)[str(data).find("'") + strshift1:str(data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    for msg_uid in target_str.split():  # Перебираем письма по UID
+        imap.uid('copy', msg_uid, "BackUp_Log")
+        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+    imap.expunge()  # Удаляем помеченные письма
+
+
 def firewall_acl(acl_1, acl_2):
     net_acl_list = []  # Фактический Список подсетей в faerowall
     for i in acl_1.decode("utf-8").split("\n")[6:(len(acl_1.decode("utf-8").split("\n")) - 1):2]:
@@ -40,6 +55,7 @@ def net_list_build(mail_data):  # Вынимаем IP адреса и отфил
                 ip.rfind(
                     '.'))] not in local_net_ip:  # Фальтруем от локальных сетей и добавляем в массив для переноса в базу
             net_list.append(ip[:ip.rfind('.')] + '.0')
+    imap.expunge()  # Удаляем помеченные письма
     return net_list
 
 
@@ -111,14 +127,28 @@ password = config('Mailpassword', default='')
 imap = imaplib.IMAP4_SSL("mail.zfamily.aero")  # Коннектимся к серверу
 imap.login(username, password)  # Логинимся на сервер
 imap.select("INBOX")  # Выбираем ящик
+
+"""Блок ежесуточных операций с почтой, если текущее время
+    текущих суток попадает в определённый интервал времени
+     frame1 - frame2, то выполняются определённые операции"""
+
+now = datetime.datetime.now()  # Текущая Дата и время
+
+frame1 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:51:00')  # Промежуток времени "от"
+frame2 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:59:00')  # Промежуток времени "до"
+
+if frame1 < now < frame2:
+    search_backup_mail()  # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report
+
+"""Блок работы с почтой каждые 5 минут"""
+
 typ, data = imap.search(None, 'Subject', '"Postfix SMTP server"')  # Фильтруем нужные письма
 
 d = str(data)  # Переводим полученные из почты данные в строку
 
 if len(d) > 5:  # Проверяем есть ли письма с в результате поиска
-    net_list_build(d)  # Список подсетей для добавления в базу
 
-    imap.expunge()  # Удаляем помеченные письма
+    net_list_build(d)  # Список подсетей для добавления в базу
 
     imap.close()  # Окончание раюоты с почтовым ящиком
     imap.logout()  # Окончание работы с почтовым ящиком
