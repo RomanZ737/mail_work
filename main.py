@@ -6,6 +6,8 @@ import time
 import datetime
 from pymysql.cursors import DictCursor  # Возвразает курсор в виде словаря из базы данных
 
+# Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report,
+# перемещаем эти письма в папку BackUp_Log, из папки Входящие удлаем все кроме последнего
 
 def search_backup_mail():
     date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
