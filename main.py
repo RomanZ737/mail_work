@@ -7,7 +7,24 @@ import datetime
 from pymysql.cursors import DictCursor  # Возвразает курсор в виде словаря из базы данных
 
 
-# Выполняем поиск писем старше сегодняшнего дня с темой Home System Fault,
+# Выполняем поиск писем старше сегодняшнего дня (не прочитанных) от NAS TVS или NAS D2
+# перемещаем эти письма в папку NAS, из папки Входящие удлаем все кроме последнего
+def search_nas_mail():
+    date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
+    strshift1 = 1
+    # Выполняем поиск писем старше сегодняшнего дня (не прочитанных) с темой BackUp Log Report, только просмотренные
+    typ, data = imap.uid('search', None,
+                         '(BEFORE {date} (OR (FROM "nas@zfamily.aero") (FROM "nasd2@zfamily.aero")))'.format(
+                             date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
+    target_str = str(data)[str(data).find("'") + strshift1:str(data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    for msg_uid in target_str.split():  # Перебираем письма по UID
+        imap.uid('copy', msg_uid, "NAS")
+        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+    imap.expunge()  # Удаляем помеченные письма
+
+
+# Выполняем поиск писем старше сегодняшнего дня (не прочитанных) с темой Home System Fault,
 # перемещаем эти письма в папку System_Fault, из папки Входящие удлаем все кроме последнего
 def search_systemfault_mail():
     date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
@@ -24,7 +41,7 @@ def search_systemfault_mail():
     imap.expunge()  # Удаляем помеченные письма
 
 
-# Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report,
+# Выполняем поиск писем старше сегодняшнего дня (не прочитанных) с темой BackUp Log Report,
 # перемещаем эти письма в папку BackUp_Log, из папки Входящие удлаем все кроме последнего
 def search_backup_mail():
     date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
@@ -83,8 +100,6 @@ def net_list_build(mail_data):  # Вынимаем IP адреса и отфил
 # получается два словаря (добавить в базу данных - sql_add_array и
 # обновить базу данных - sql_update_array) и один
 # список (добавить в firewall)
-
-
 def sql_result_poc(array1, array2):
     result_dict = {}
 
@@ -159,8 +174,9 @@ frame1 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:51:00')
 frame2 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:59:00')  # Промежуток времени "до"
 
 if frame1 < now < frame2:
-    search_backup_mail()  # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report
-    search_systemfault_mail()  # Выполняем поиск писем старше сегодняшнего дня с темой Home System Fault
+    search_backup_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) с темой BackUp Log Report
+    search_systemfault_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) с темой Home System Fault
+    search_nas_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) от NAS TVS или NAS D2
 
 """Блок работы с почтой каждые 5 минут"""
 
