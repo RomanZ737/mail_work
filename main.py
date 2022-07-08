@@ -7,6 +7,49 @@ import datetime
 from pymysql.cursors import DictCursor  # Возвразает курсор в виде словаря из базы данных
 
 
+# Удаляем письма в ящиках (кроме INBOX), старше 14 дней
+def clean_mail_boxes():
+    strshift1 = 1
+    dateshift = 14
+    date = (datetime.date.today() - datetime.timedelta(days=dateshift)).strftime("%d-%b-%Y")  # Дата семь дней назад
+    imap.select("Mail_Error")  # Выбираем ящик
+    search_typ, serach_data = imap.uid('search', None,
+                                       '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
+    target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    if len(target_str) > 0:  # Проверяем есть ли письма
+        for msg_uid in target_str.split():  # Перебираем письма по UID
+            imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+        imap.expunge()  # Удаляем помеченные письма
+
+    imap.select("BackUp_Log")  # Выбираем ящик
+    search_typ, serach_data = imap.uid('search', None,
+                                       '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
+    target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    for msg_uid in target_str.split():  # Перебираем письма по UID
+        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+    imap.expunge()  # Удаляем помеченные письма
+
+    imap.select("System_Fault")  # Выбираем ящик
+    search_typ, serach_data = imap.uid('search', None,
+                                       '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
+    target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    for msg_uid in target_str.split():  # Перебираем письма по UID
+        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+    imap.expunge()  # Удаляем помеченные письма
+
+    imap.select("NAS")  # Выбираем ящик
+    search_typ, serach_data = imap.uid('search', None,
+                                       '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
+    target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    for msg_uid in target_str.split():  # Перебираем письма по UID
+        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+    imap.expunge()  # Удаляем помеченные письма
+
+
 # Выполняем поиск писем старше сегодняшнего дня (не прочитанных) от NAS TVS или NAS D2
 # перемещаем эти письма в папку NAS, из папки Входящие удлаем все кроме последнего
 def search_nas_mail():
@@ -177,6 +220,7 @@ if frame1 < now < frame2:
     search_backup_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) с темой BackUp Log Report
     search_systemfault_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) с темой Home System Fault
     search_nas_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) от NAS TVS или NAS D2
+    clean_mail_boxes()  # Удаляем письма в ящиках (кроме INBOX), старше 14 дней
 
 """Блок работы с почтой каждые 5 минут"""
 
