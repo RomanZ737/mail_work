@@ -27,27 +27,30 @@ def clean_mail_boxes():
                                        '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
     target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
         "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
-    for msg_uid in target_str.split():  # Перебираем письма по UID
-        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
-    imap.expunge()  # Удаляем помеченные письма
+    if len(target_str) > 0:  # Проверяем есть ли письма
+        for msg_uid in target_str.split():  # Перебираем письма по UID
+            imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+        imap.expunge()  # Удаляем помеченные письма
 
     imap.select("System_Fault")  # Выбираем ящик
     search_typ, serach_data = imap.uid('search', None,
                                        '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
     target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
         "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
-    for msg_uid in target_str.split():  # Перебираем письма по UID
-        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
-    imap.expunge()  # Удаляем помеченные письма
+    if len(target_str) > 0:  # Проверяем есть ли письма
+        for msg_uid in target_str.split():  # Перебираем письма по UID
+            imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+        imap.expunge()  # Удаляем помеченные письма
 
     imap.select("NAS")  # Выбираем ящик
     search_typ, serach_data = imap.uid('search', None,
                                        '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
     target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
         "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
-    for msg_uid in target_str.split():  # Перебираем письма по UID
-        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
-    imap.expunge()  # Удаляем помеченные письма
+    if len(target_str) > 0:  # Проверяем есть ли письма
+        for msg_uid in target_str.split():  # Перебираем письма по UID
+            imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+        imap.expunge()  # Удаляем помеченные письма
 
 
 # Выполняем поиск писем старше сегодняшнего дня (не прочитанных) от NAS TVS или NAS D2
@@ -223,6 +226,8 @@ if frame1 < now < frame2:
     clean_mail_boxes()  # Удаляем письма в ящиках (кроме INBOX), старше 14 дней
 
 """Блок работы с почтой каждые 5 минут"""
+
+imap.select("INBOX")  # Выбираем ящик повторно т.к. выбор ящика менялся в функции clean_mail_boxes()
 
 typ, data = imap.search(None, 'Subject', '"Postfix SMTP server"')  # Фильтруем нужные письма
 
