@@ -6,9 +6,26 @@ import time
 import datetime
 from pymysql.cursors import DictCursor  # Возвразает курсор в виде словаря из базы данных
 
+
+# Выполняем поиск писем старше сегодняшнего дня с темой Home System Fault,
+# перемещаем эти письма в папку System_Fault, из папки Входящие удлаем все кроме последнего
+def search_systemfault_mail():
+    date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
+    strshift1 = 1
+    # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report, только просмотренные
+    typ, data = imap.uid('search', None,
+                         '(BEFORE {date} HEADER Subject "Home System Fault")'.format(
+                             date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
+    target_str = str(data)[str(data).find("'") + strshift1:str(data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    for msg_uid in target_str.split():  # Перебираем письма по UID
+        imap.uid('copy', msg_uid, "System_Fault")
+        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+    imap.expunge()  # Удаляем помеченные письма
+
+
 # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report,
 # перемещаем эти письма в папку BackUp_Log, из папки Входящие удлаем все кроме последнего
-
 def search_backup_mail():
     date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
     strshift1 = 1
@@ -143,6 +160,7 @@ frame2 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:59:00')
 
 if frame1 < now < frame2:
     search_backup_mail()  # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report
+    search_systemfault_mail()  # Выполняем поиск писем старше сегодняшнего дня с темой Home System Fault
 
 """Блок работы с почтой каждые 5 минут"""
 
