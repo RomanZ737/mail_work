@@ -51,6 +51,18 @@ def clean_mail_boxes():
         for msg_uid in target_str.split():  # Перебираем письма по UID
             imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
         imap.expunge()  # Удаляем помеченные письма
+
+    imap.select("Home_Event")  # Выбираем ящик
+    search_typ, serach_data = imap.uid('search', None,
+                                       '(BEFORE {date})'.format(date=date))  # Фильтруем нужные письма
+    target_str = str(serach_data)[str(serach_data).find("'") + strshift1:str(serach_data).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    if len(target_str) > 0:  # Проверяем есть ли письма
+        for msg_uid in target_str.split():  # Перебираем письма по UID
+            imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+        imap.expunge()  # Удаляем помеченные письма
+
+
     imap.select("INBOX")  # Выбираем ящик повторно т.к. выбор ящика менялся в функции
 
 
@@ -101,6 +113,22 @@ def search_backup_mail():
         "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
     for msg_uid in target_str.split():  # Перебираем письма по UID
         imap.uid('copy', msg_uid, "BackUp_Log")
+        imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
+    imap.expunge()  # Удаляем помеченные письма
+
+# Выполняем поиск писем старше сегодняшнего дня (не прочитанных) с темой Home Event,
+# перемещаем эти письма в папку Home_Event, из папки Входящие удлаем все кроме последнего
+def search_homeevent_mail():
+    date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
+    strshift1 = 1
+    # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report, только просмотренные
+    typ5, data5 = imap.uid('search', None,
+                           '(BEFORE {date} FROM "Home Event")'.format(date=date),
+                           'SEEN')  # Фильтруем нужные письма, только просмотренные
+    target_str = str(data5)[str(data5).find("'") + strshift1:str(data5).rfind(
+        "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
+    for msg_uid in target_str.split():  # Перебираем письма по UID
+        imap.uid('copy', msg_uid, "Home_Event")
         imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
     imap.expunge()  # Удаляем помеченные письма
 
@@ -224,6 +252,7 @@ if frame1 < now < frame2:
     search_backup_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) с темой BackUp Log Report
     search_systemfault_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) с темой Home System Fault
     search_nas_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) от NAS TVS или NAS D2
+    search_homeevent_mail()  # # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) от Home Event
     clean_mail_boxes()  # Удаляем письма в ящиках (кроме INBOX), старше 14 дней
 
 """Блок работы с почтой каждые 5 минут"""
