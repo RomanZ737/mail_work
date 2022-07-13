@@ -1,3 +1,6 @@
+#!/usr/local/bin/python3.8
+# -*- Coding: utf-8 -*-
+
 import imaplib
 import pymysql
 from decouple import config
