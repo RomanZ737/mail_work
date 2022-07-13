@@ -10,7 +10,7 @@ from pymysql.cursors import DictCursor  # Возвразает курсор в �
 # Удаляем письма в ящиках (кроме INBOX), старше 14 дней
 def clean_mail_boxes():
     strshift1 = 1
-    dateshift = 14
+    dateshift = 14  # Количество дней хранения писем
     date = (datetime.date.today() - datetime.timedelta(days=dateshift)).strftime("%d-%b-%Y")  # Дата семь дней назад
     imap.select("Mail_Error")  # Выбираем ящик
     search_typ, serach_data = imap.uid('search', None,
@@ -51,6 +51,7 @@ def clean_mail_boxes():
         for msg_uid in target_str.split():  # Перебираем письма по UID
             imap.uid('store', msg_uid, '+FLAGS', '\\Deleted')
         imap.expunge()  # Удаляем помеченные письма
+    imap.select("INBOX")  # Выбираем ящик повторно т.к. выбор ящика менялся в функции
 
 
 # Выполняем поиск писем старше сегодняшнего дня (не прочитанных) от NAS TVS или NAS D2
@@ -59,10 +60,10 @@ def search_nas_mail():
     date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
     strshift1 = 1
     # Выполняем поиск писем старше сегодняшнего дня (не прочитанных) с темой BackUp Log Report, только просмотренные
-    typ, data = imap.uid('search', None,
-                         '(BEFORE {date} (OR (FROM "nas@zfamily.aero") (FROM "nasd2@zfamily.aero")))'.format(
-                             date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
-    target_str = str(data)[str(data).find("'") + strshift1:str(data).rfind(
+    typ2, data2 = imap.uid('search', None,
+                           '(BEFORE {date} (OR (FROM "nas@zfamily.aero") (FROM "nasd2@zfamily.aero")))'.format(
+                               date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
+    target_str = str(data2)[str(data2).find("'") + strshift1:str(data2).rfind(
         "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
     for msg_uid in target_str.split():  # Перебираем письма по UID
         imap.uid('copy', msg_uid, "NAS")
@@ -76,10 +77,10 @@ def search_systemfault_mail():
     date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
     strshift1 = 1
     # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report, только просмотренные
-    typ, data = imap.uid('search', None,
-                         '(BEFORE {date} HEADER Subject "Home System Fault")'.format(
-                             date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
-    target_str = str(data)[str(data).find("'") + strshift1:str(data).rfind(
+    typ3, data3 = imap.uid('search', None,
+                           '(BEFORE {date} HEADER Subject "Home System Fault")'.format(
+                               date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
+    target_str = str(data3)[str(data3).find("'") + strshift1:str(data3).rfind(
         "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
     for msg_uid in target_str.split():  # Перебираем письма по UID
         imap.uid('copy', msg_uid, "System_Fault")
@@ -93,10 +94,10 @@ def search_backup_mail():
     date = datetime.date.today().strftime("%d-%b-%Y")  # Сегодняшняя дата в формате для IMAP
     strshift1 = 1
     # Выполняем поиск писем старше сегодняшнего дня с темой BackUp Log Report, только просмотренные
-    typ, data = imap.uid('search', None,
-                         '(BEFORE {date} HEADER Subject "Backup Log Report")'.format(
-                             date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
-    target_str = str(data)[str(data).find("'") + strshift1:str(data).rfind(
+    typ1, data1 = imap.uid('search', None,
+                           '(BEFORE {date} HEADER Subject "Backup Log Report")'.format(
+                               date=date), 'SEEN')  # Фильтруем нужные письма, только просмотренные
+    target_str = str(data1)[str(data1).find("'") + strshift1:str(data1).rfind(
         "'")]  # Переводим полученные из почты данные (UID писем) в строку и обрезаем не лишние символы
     for msg_uid in target_str.split():  # Перебираем письма по UID
         imap.uid('copy', msg_uid, "BackUp_Log")
@@ -216,7 +217,7 @@ imap.select("INBOX")  # Выбираем ящик
 
 now = datetime.datetime.now()  # Текущая Дата и время
 
-frame1 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:51:00')  # Промежуток времени "от"
+frame1 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:50:00')  # Промежуток времени "от"
 frame2 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:59:00')  # Промежуток времени "до"
 
 if frame1 < now < frame2:
@@ -226,8 +227,6 @@ if frame1 < now < frame2:
     clean_mail_boxes()  # Удаляем письма в ящиках (кроме INBOX), старше 14 дней
 
 """Блок работы с почтой каждые 5 минут"""
-
-imap.select("INBOX")  # Выбираем ящик повторно т.к. выбор ящика менялся в функции clean_mail_boxes()
 
 typ, data = imap.search(None, 'Subject', '"Postfix SMTP server"')  # Фильтруем нужные письма
 
