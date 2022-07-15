@@ -248,8 +248,8 @@ imap.select("INBOX")  # Выбираем ящик
 
 now = datetime.datetime.now()  # Текущая Дата и время
 
-frame1 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:50:00')  # Промежуток времени "от"
-frame2 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 23:59:00')  # Промежуток времени "до"
+frame1 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 00:01:00')  # Промежуток времени "от" должен быть в 12ти часовом формате
+frame2 = datetime.datetime.fromisoformat(now.strftime("%Y-%m-%d") + ' 00:11:00')  # Промежуток времени "до" должен быть в 12ти часовом формате
 
 if frame1 < now < frame2:
     search_backup_mail()  # Выполняем поиск писем старше сегодняшнего дня (Не прочитанных) с темой BackUp Log Report
